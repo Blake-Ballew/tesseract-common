@@ -1,0 +1,27 @@
+{
+    "name": "tesseract-common",
+    "version": "1.0.0",
+    "description": "Common code for Tesseract CPU and GPU",
+  
+    "authors": [
+      {
+        "name": "Blake Ballew",
+        "email": "blakeb130@gmail.com",
+        "url": "https://github.com/Blake-Ballew"
+      }
+    ],
+    "license": "MIT",
+    "dependencies": {
+      
+    },
+    "frameworks": "*",
+    "platforms": "*",
+    "build": {
+      "flags": [
+        "-Isrc/",
+        "-Isrc/DataDefs/",
+        "-Isrc/Utilities/"
+      ]
+    }
+  }
+  
