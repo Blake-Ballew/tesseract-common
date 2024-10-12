@@ -5,21 +5,22 @@
 namespace TesseractCommon
 {
     // Opcodes for GPU commands. 6 bits
-    enum 
+    namespace DrawCommandOpcode
     {
-        CFG_ZLVL = 0x01, // SetStripZLevel
-        CFG_OFS = 0x02,  // SetTimingOffset
-        CFG_TSCL = 0x03, // SetTimingScale
+        const uint8_t OPCODE_SIZE_BITS = 6;
 
-        CTRL_CLR = 0x04, // ClearMemory
-        CTRL_ZLQ = 0x05, // SetZLevelQuad
-        CTRL_COLOR = 0x06, // SetPaletteColor
+        const uint8_t CFG_ZLVL = 0x01; // SetStripZLevel
+        const uint8_t CFG_OFS = 0x02;  // SetTimingOffset
+        const uint8_t CFG_TSCL = 0x03; // SetTimingScale
 
-        DRW_ZORD = 0x07, // DrawZOrderPixels
-        DRW_XY_PXL = 0x08, // DrawXYPixel
-        DRW_XY_RECT = 0x09, // DrawRect
+        const uint8_t CTRL_CLR = 0x04; // ClearMemory
+        const uint8_t CTRL_ZLQ = 0x05; // SetZLevelQuad
+        const uint8_t CTRL_COLOR = 0x06; // SetPaletteColor
 
-    } DrawCommandOpcode;
+        const uint8_t DRW_ZORD = 0x07; // DrawZOrderPixels
+        const uint8_t DRW_XY_PXL = 0x08; // DrawXYPixel
+        const uint8_t DRW_XY_RECT = 0x09; // DrawRect
+    }
 
     struct DrawCommand
     {
