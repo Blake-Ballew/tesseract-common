@@ -42,10 +42,13 @@ namespace TesseractCommon
 
     #pragma region WiFi
 
+    const char *SSID = "Tesseract";
+    const char *Password = "Tesseract";
     const char *HostName = "Tesseract-Bridge";
     const IPAddress IpAddress(10, 0, 0, 69);
-    const int ServerPort = 420;
-    const int maxClients = 1;
+    const int ConnectionPort = 420;
+    const size_t ConnectionTimeout = 5000;
+
 
     WiFiServer *Server = nullptr;
     WiFiClient Client;
@@ -53,19 +56,50 @@ namespace TesseractCommon
 
     void EstablishWiFiConnection(
         wifi_mode_t mode = WIFI_MODE_STA,
-        const char * hostname = HostName
+        const char * hostname = HostName,
+        size_t timeOutms = ConnectionTimeout,
+        const char * ssid = SSID,
+        const char * password = Password
         )
     {
         WiFi.mode(WIFI_STA);
         WiFi.setHostname(hostname);
+
+        if (mode == WIFI_MODE_STA)
+        {
+            WiFi.begin(ssid, password);
+        }
+        else if (mode == WIFI_MODE_AP)
+        {
+            WiFi.softAP(ssid, password);
+        }
+
+        WiFi.onEvent(WiFiEvent);
+
+        if (timeOutms > 0)
+        {
+            unsigned long startTime = millis();
+            while (WiFi.status() != WL_CONNECTED && (millis() - startTime) < timeOutms)
+            {
+                delay(100);
+            }
+        }
     }
 
-    void EstablishWiFiServer(
+    void EstablishUdpStream(
         IPAddress addr = IpAddress,
-        int port = ServerPort
+        int port = ConnectionPort
     )
     {
         UdpConnection.begin(addr, port);
+    }
+
+    void WiFiEvent(WiFiEvent_t event)
+    {
+        switch (event)
+        {
+            
+        }
     }
 
     // void CheckForWiFiClient()
