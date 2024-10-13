@@ -47,7 +47,7 @@ namespace TesseractCommon
     const int maxClients = 1;
 
     WiFiServer *Server = nullptr;
-    WiFiClient *Client = nullptr;
+    WiFiClient Client;
 
     void EstablishWiFiConnection(
         wifi_mode_t mode = WIFI_MODE_STA,
@@ -69,6 +69,19 @@ namespace TesseractCommon
         Server->begin();
     }
 
+    void CheckForWiFiClient()
+    {
+        if (Server->hasClient())
+        {
+            if (Client.connected())
+            {
+                Client.stop();
+            }
+
+            Client = Server->available();
+        }
+    }
+
     #pragma endregion
 
     #pragma region SPI Connection
@@ -84,6 +97,7 @@ namespace TesseractCommon
     ESP32DMASPI::Master master;
     ESP32DMASPI::Slave slave;
 
+    bool SpiInitialized = false;
     bool SpiMaster = false;
 
     void EstablishSPIMaster(
@@ -103,6 +117,8 @@ namespace TesseractCommon
         master.setQueueSize(queueSize);
         master.setFrequency(frequency);
         master.begin();
+
+        SpiInitialized = true;
     }
 
 
@@ -121,6 +137,24 @@ namespace TesseractCommon
         slave.setMaxTransferSize(bufferSize);
         slave.setQueueSize(queueSize);
         slave.begin();
+
+        SpiInitialized = true;
+    }
+
+    // Streams data from master to slave
+    void StreamDataToSlave(Stream &stream)
+    {
+        if (!SpiInitialized) return;
+
+        auto bytesAvailable = stream.available();
+        if (bytesAvailable < 1) return;
+        
+        if (bytesAvailable > 0)
+        {
+            
+        }
+
+
     }
 
     #pragma endregion
