@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <WiFiUdp.h>
 #include <ESP32DMASPISlave.h>
 #include <ESP32DMASPIMaster.h>
 
@@ -48,6 +49,7 @@ namespace TesseractCommon
 
     WiFiServer *Server = nullptr;
     WiFiClient Client;
+    WiFiUDP UdpConnection;
 
     void EstablishWiFiConnection(
         wifi_mode_t mode = WIFI_MODE_STA,
@@ -60,27 +62,24 @@ namespace TesseractCommon
 
     void EstablishWiFiServer(
         IPAddress addr = IpAddress,
-        int port = ServerPort,
-        uint8_t maxClients = maxClients
+        int port = ServerPort
     )
     {
-        Server = new WiFiServer(addr, port, maxClients);
-
-        Server->begin();
+        UdpConnection.begin(addr, port);
     }
 
-    void CheckForWiFiClient()
-    {
-        if (Server->hasClient())
-        {
-            if (Client.connected())
-            {
-                Client.stop();
-            }
+    // void CheckForWiFiClient()
+    // {
+    //     if (Server->hasClient())
+    //     {
+    //         if (Client.connected())
+    //         {
+    //             Client.stop();
+    //         }
 
-            Client = Server->available();
-        }
-    }
+    //         Client = Server->available();
+    //     }
+    // }
 
     #pragma endregion
 
@@ -141,8 +140,8 @@ namespace TesseractCommon
         SpiInitialized = true;
     }
 
-    // Streams data from master to slave
-    void StreamDataToSlave(Stream &stream)
+    // Streams data from master to slave. The stream will be a udp connection
+    void StreamDataToMasterBuffer(Stream &stream)
     {
         if (!SpiInitialized) return;
 
@@ -151,10 +150,11 @@ namespace TesseractCommon
         
         if (bytesAvailable > 0)
         {
-            
+            memset(SpiSendBuffer, 0, SPI_BUFFER_SIZE + SPI_BUFFER_PADDING);
+            stream.readBytes(SpiSendBuffer, bytesAvailable);
         }
 
-
+        master.transfer(SpiSendBuffer, SpiReceiveBuffer, bytesAvailable);
     }
 
     #pragma endregion
