@@ -1,6 +1,9 @@
 #pragma once
 
 #include <Arduino.h>
+#include <WiFi.h>
+#include <ESP32DMASPISlave.h>
+#include <ESP32DMASPIMaster.h>
 
 namespace TesseractCommon
 {
@@ -35,4 +38,90 @@ namespace TesseractCommon
     {
         if (((bitOffset + numBits) << 3) > dataLen) return;
     }
+
+    #pragma region WiFi
+
+    const char *HostName = "Tesseract-Bridge";
+    const IPAddress IpAddress(10, 0, 0, 69);
+    const int ServerPort = 420;
+    const int maxClients = 1;
+
+    WiFiServer *Server = nullptr;
+    WiFiClient *Client = nullptr;
+
+    void EstablishWiFiConnection(
+        wifi_mode_t mode = WIFI_MODE_STA,
+        const char * hostname = HostName
+        )
+    {
+        WiFi.mode(WIFI_STA);
+        WiFi.setHostname(hostname);
+    }
+
+    void EstablishWiFiServer(
+        IPAddress addr = IpAddress,
+        int port = ServerPort,
+        uint8_t maxClients = maxClients
+    )
+    {
+        Server = new WiFiServer(addr, port, maxClients);
+
+        Server->begin();
+    }
+
+    #pragma endregion
+
+    #pragma region SPI Connection
+
+    const size_t SPI_BUFFER_SIZE = 1024;
+    const size_t SPI_BUFFER_PADDING = 4;
+    const size_t SPI_QUEUE_SIZE = 1;
+    const size_t SPI_FREQUENCY = 1000000;
+
+    uint8_t *SpiReceiveBuffer = nullptr;
+    uint8_t *SpiSendBuffer = nullptr;
+
+    ESP32DMASPI::Master master;
+    ESP32DMASPI::Slave slave;
+
+    bool SpiMaster = false;
+
+    void EstablishSPIMaster(
+        size_t bufferSize = SPI_BUFFER_SIZE,
+        size_t queueSize = SPI_QUEUE_SIZE,
+        size_t spiMode = SPI_MODE0,
+        size_t frequency = SPI_FREQUENCY
+    )
+    {
+        SpiMaster = true;
+
+        SpiSendBuffer = master.allocDMABuffer(bufferSize + SPI_BUFFER_PADDING);
+        SpiReceiveBuffer = master.allocDMABuffer(bufferSize + SPI_BUFFER_PADDING);
+
+        master.setDataMode(spiMode);
+        master.setMaxTransferSize(bufferSize);
+        master.setQueueSize(queueSize);
+        master.setFrequency(frequency);
+        master.begin();
+    }
+
+
+    void EstablishSPISlave(
+        size_t bufferSize = SPI_BUFFER_SIZE,
+        size_t queueSize = SPI_QUEUE_SIZE,
+        size_t spiMode = SPI_MODE0
+    )
+    {
+        SpiMaster = false;
+
+        SpiSendBuffer = slave.allocDMABuffer(bufferSize + SPI_BUFFER_PADDING);
+        SpiReceiveBuffer = slave.allocDMABuffer(bufferSize + SPI_BUFFER_PADDING);
+
+        slave.setDataMode(spiMode);
+        slave.setMaxTransferSize(bufferSize);
+        slave.setQueueSize(queueSize);
+        slave.begin();
+    }
+
+    #pragma endregion
 }
