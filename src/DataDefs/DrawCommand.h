@@ -227,10 +227,10 @@ namespace TesseractCommon
     struct DrawRect
     {
         uint8_t drawMode; // 2 bits
-        uint8_t xPos; // 8 bits
-        uint8_t yPos; // 8 bits
-        uint8_t width; // 8 bits
-        uint8_t height; // 8 bits
+        uint16_t xPos; // 16 bits
+        uint16_t yPos; // 16 bits
+        uint16_t width; // 16 bits
+        uint16_t height; // 16 bits
         uint8_t color; // 8 bits
 
         void DecodeFromBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
@@ -238,17 +238,17 @@ namespace TesseractCommon
             GetBitCompressedValue(data, dataLen, bitOffset, 2, drawMode);
             bitOffset += 2;
 
-            GetBitCompressedValue(data, dataLen, bitOffset, 8, xPos);
-            bitOffset += 8;
+            GetBitCompressedValue(data, dataLen, bitOffset, 16, xPos);
+            bitOffset += 16;
 
-            GetBitCompressedValue(data, dataLen, bitOffset, 8, yPos);
-            bitOffset += 8;
+            GetBitCompressedValue(data, dataLen, bitOffset, 16, yPos);
+            bitOffset += 16;
 
-            GetBitCompressedValue(data, dataLen, bitOffset, 8, width);
-            bitOffset += 8;
+            GetBitCompressedValue(data, dataLen, bitOffset, 16, width);
+            bitOffset += 16;
 
-            GetBitCompressedValue(data, dataLen, bitOffset, 8, height);
-            bitOffset += 8;
+            GetBitCompressedValue(data, dataLen, bitOffset, 16, height);
+            bitOffset += 16;
 
             GetBitCompressedValue(data, dataLen, bitOffset, 8, color);
             bitOffset += 8;
@@ -259,17 +259,17 @@ namespace TesseractCommon
             SetBitCompressedValue(data, dataLen, bitOffset, 2, drawMode);
             bitOffset += 2;
 
-            SetBitCompressedValue(data, dataLen, bitOffset, 8, xPos);
-            bitOffset += 8;
+            SetBitCompressedValue(data, dataLen, bitOffset, 16, xPos);
+            bitOffset += 16;
 
-            SetBitCompressedValue(data, dataLen, bitOffset, 8, yPos);
-            bitOffset += 8;
+            SetBitCompressedValue(data, dataLen, bitOffset, 16, yPos);
+            bitOffset += 16;
 
-            SetBitCompressedValue(data, dataLen, bitOffset, 8, width);
-            bitOffset += 8;
+            SetBitCompressedValue(data, dataLen, bitOffset, 16, width);
+            bitOffset += 16;
 
-            SetBitCompressedValue(data, dataLen, bitOffset, 8, height);
-            bitOffset += 8;
+            SetBitCompressedValue(data, dataLen, bitOffset, 16, height);
+            bitOffset += 16;
 
             SetBitCompressedValue(data, dataLen, bitOffset, 8, color);
             bitOffset += 8;
