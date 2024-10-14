@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include "TesseractCommonUtils.h"
 
 namespace TesseractCommon
 {
@@ -30,27 +31,96 @@ namespace TesseractCommon
     struct SetStripZLevel
     {
         uint8_t zLevel; // 8 bits
+
+        void DecodeFromBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
+        {
+            GetBitCompressedValue(data, dataLen, bitOffset, 8, zLevel);
+
+            bitOffset += 8;
+        }
+
+        void EncodeToBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
+        {
+            SetBitCompressedValue(data, dataLen, bitOffset, 8, zLevel);
+            bitOffset += 8;
+        }
     };
 
     struct SetTimingOffset
     {
         uint32_t offsetNanoseconds; // 24 bits
+
+        void DecodeFromBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
+        {
+            GetBitCompressedValue(data, dataLen, bitOffset, 24, offsetNanoseconds);
+
+            bitOffset += 24;
+        }
+
+        void EncodeToBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
+        {
+            SetBitCompressedValue(data, dataLen, bitOffset, 24, offsetNanoseconds);
+            bitOffset += 24;
+        }
     };
 
     struct SetTimingScale
     {
         uint32_t timeScaleFactor; // 24 bits
+
+        void DecodeFromBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
+        {
+            GetBitCompressedValue(data, dataLen, bitOffset, 24, timeScaleFactor);
+
+            bitOffset += 24;
+        }
+
+        void EncodeToBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
+        {
+            SetBitCompressedValue(data, dataLen, bitOffset, 24, timeScaleFactor);
+            bitOffset += 24;
+        }
     };
 
     struct ClearMemory
     {
         uint16_t padding; // 10 bits
+
+        void DecodeFromBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
+        {
+            GetBitCompressedValue(data, dataLen, bitOffset, 10, padding);
+            bitOffset += 10;
+        }
+
+        void EncodeToBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
+        {
+            SetBitCompressedValue(data, dataLen, bitOffset, 10, padding);
+            bitOffset += 10;
+        }
     };
 
     struct SetZLevel
     {
         uint8_t quadrant; // 2 bits
         uint8_t zLevel; // 8 bits
+
+        void DecodeFromBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
+        {
+            GetBitCompressedValue(data, dataLen, bitOffset, 2, quadrant);
+            bitOffset += 2;
+
+            GetBitCompressedValue(data, dataLen, bitOffset, 8, zLevel);
+            bitOffset += 8;
+        }
+
+        void EncodeToBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
+        {
+            SetBitCompressedValue(data, dataLen, bitOffset, 2, quadrant);
+            bitOffset += 2;
+
+            SetBitCompressedValue(data, dataLen, bitOffset, 8, zLevel);
+            bitOffset += 8;
+        }
     };
 
     struct SetPaletteColor
@@ -60,6 +130,29 @@ namespace TesseractCommon
         uint8_t red; // 8 bits
         uint8_t green; // 8 bits
         uint8_t blue; // 8 bits
+
+        void DecodeFromBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
+        {
+            GetBitCompressedValue(data, dataLen, bitOffset, 10, futureUse);
+            bitOffset += 10;
+
+            GetBitCompressedValue(data, dataLen, bitOffset, 8, colorIdx);
+            bitOffset += 8;
+
+            GetBitCompressedValue(data, dataLen, bitOffset, 8, red);
+            bitOffset += 8;
+
+            GetBitCompressedValue(data, dataLen, bitOffset, 8, green); 
+            bitOffset += 8;
+
+            GetBitCompressedValue(data, dataLen, bitOffset, 8, blue);
+            bitOffset += 8;
+        }
+
+        void EncodeToBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
+        {
+            SetBitCompressedValue(data, dataLen, bitOffset, 10, futureUse);
+        }
     };
 
     struct DrawZOrderPixels
@@ -68,6 +161,36 @@ namespace TesseractCommon
         uint16_t zStart; // 16 bits
         uint16_t zEnd; // 16 bits
         uint8_t color; // 8 bits
+
+        void DecodeFromBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
+        {
+            GetBitCompressedValue(data, dataLen, bitOffset, 2, drawMode);
+            bitOffset += 2;
+
+            GetBitCompressedValue(data, dataLen, bitOffset, 16, zStart);
+            bitOffset += 16;
+
+            GetBitCompressedValue(data, dataLen, bitOffset, 16, zEnd);
+            bitOffset += 16;
+
+            GetBitCompressedValue(data, dataLen, bitOffset, 8, color);
+            bitOffset += 8;
+        }
+
+        void EncodeToBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
+        {
+            SetBitCompressedValue(data, dataLen, bitOffset, 2, drawMode);
+            bitOffset += 2;
+
+            SetBitCompressedValue(data, dataLen, bitOffset, 16, zStart);
+            bitOffset += 16;
+
+            SetBitCompressedValue(data, dataLen, bitOffset, 16, zEnd);
+            bitOffset += 16;
+
+            SetBitCompressedValue(data, dataLen, bitOffset, 8, color);
+            bitOffset += 8;
+        }
     };
 
     struct DrawXYPixel
@@ -76,6 +199,36 @@ namespace TesseractCommon
         uint8_t xPos; // 8 bits
         uint8_t yPos; // 8 bits
         uint8_t color; // 8 bits
+
+        void DecodeFromBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
+        {
+            GetBitCompressedValue(data, dataLen, bitOffset, 2, drawMode);
+            bitOffset += 2;
+
+            GetBitCompressedValue(data, dataLen, bitOffset, 8, xPos);
+            bitOffset += 8;
+
+            GetBitCompressedValue(data, dataLen, bitOffset, 8, yPos);
+            bitOffset += 8;
+
+            GetBitCompressedValue(data, dataLen, bitOffset, 8, color);
+            bitOffset += 8;
+        }
+
+        void EncodeToBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
+        {
+            SetBitCompressedValue(data, dataLen, bitOffset, 2, drawMode);
+            bitOffset += 2;
+
+            SetBitCompressedValue(data, dataLen, bitOffset, 8, xPos);
+            bitOffset += 8;
+
+            SetBitCompressedValue(data, dataLen, bitOffset, 8, yPos);
+            bitOffset += 8;
+
+            SetBitCompressedValue(data, dataLen, bitOffset, 8, color);
+            bitOffset += 8;
+        }
     };
 
     struct DrawRect
@@ -86,5 +239,47 @@ namespace TesseractCommon
         uint8_t width; // 8 bits
         uint8_t height; // 8 bits
         uint8_t color; // 8 bits
+
+        void DecodeFromBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
+        {
+            GetBitCompressedValue(data, dataLen, bitOffset, 2, drawMode);
+            bitOffset += 2;
+
+            GetBitCompressedValue(data, dataLen, bitOffset, 8, xPos);
+            bitOffset += 8;
+
+            GetBitCompressedValue(data, dataLen, bitOffset, 8, yPos);
+            bitOffset += 8;
+
+            GetBitCompressedValue(data, dataLen, bitOffset, 8, width);
+            bitOffset += 8;
+
+            GetBitCompressedValue(data, dataLen, bitOffset, 8, height);
+            bitOffset += 8;
+
+            GetBitCompressedValue(data, dataLen, bitOffset, 8, color);
+            bitOffset += 8;
+        }
+
+        void EncodeToBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
+        {
+            SetBitCompressedValue(data, dataLen, bitOffset, 2, drawMode);
+            bitOffset += 2;
+
+            SetBitCompressedValue(data, dataLen, bitOffset, 8, xPos);
+            bitOffset += 8;
+
+            SetBitCompressedValue(data, dataLen, bitOffset, 8, yPos);
+            bitOffset += 8;
+
+            SetBitCompressedValue(data, dataLen, bitOffset, 8, width);
+            bitOffset += 8;
+
+            SetBitCompressedValue(data, dataLen, bitOffset, 8, height);
+            bitOffset += 8;
+
+            SetBitCompressedValue(data, dataLen, bitOffset, 8, color);
+            bitOffset += 8;
+        }
     };
 };
