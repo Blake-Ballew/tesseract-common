@@ -8,37 +8,173 @@
 
 namespace TesseractCommon
 {
+
+    #pragma region Bit Packing
+
     // Functions that take in a data buffer, a starting bit offset, a number of bits, and writes the value to the reference
 
     void GetBitCompressedValue(uint8_t* data, size_t dataLen, size_t bitOffset, uint8_t numBits, uint8_t& outVal)
     {
         if (((bitOffset + numBits) << 3) > dataLen) return;
-        if (bitOffset >= 8) return;
+        if (numBits > sizeof(uint8_t) << 3) return;
 
-        uint8_t returnVal = 0;
-        uint8_t byteOffset = bitOffset >> 3;
-        size_t bitOffsetInByte = (byteOffset << 3) - bitOffset;
+        uint8_t outValBitIdx = 0;
 
-        returnVal |= (data[byteOffset] >> bitOffsetInByte);
-
-        if (bitOffsetInByte > 0)
+        while (numBits > 0)
         {
-            uint8_t mask = 0xFF >> bitOffsetInByte;
-            returnVal |= ((data[byteOffset + 1] & mask) << bitOffsetInByte);
-        }
+            size_t byteOffset = bitOffset >> 3;
+            uint8_t bitOffsetInByte = (byteOffset << 3) - bitOffset;
 
-        // outVal = returnVal & (uint8_t)(0xFF << (8 - numBits));
+            size_t bitsForThisByte = min(numBits, uint8_t(8 - bitOffsetInByte));
+
+            auto andMask = GetLsbAndMask(bitsForThisByte);
+            andMask <<= bitOffsetInByte;
+            uint8_t bitsToAdd = (data[byteOffset] & andMask) >> bitOffsetInByte;
+
+            outVal |= (bitsToAdd << outValBitIdx);
+            outValBitIdx += bitsForThisByte;
+
+            bitOffset += bitsForThisByte;
+            numBits -= bitsForThisByte;
+        }
     }
 
     void GetBitCompressedValue(uint8_t* data, size_t dataLen, size_t bitOffset, uint8_t numBits, uint16_t& outVal)
     {
         if (((bitOffset + numBits) << 3) > dataLen) return;
+        if (numBits > sizeof(uint16_t) << 3) return;
+
+        uint8_t outValBitIdx = 0;
+
+        while (numBits > 0)
+        {
+            size_t byteOffset = bitOffset >> 3;
+            uint8_t bitOffsetInByte = (byteOffset << 3) - bitOffset;
+
+            size_t bitsForThisByte = min(numBits, uint8_t(8 - bitOffsetInByte));
+
+            auto andMask = GetLsbAndMask(bitsForThisByte);
+            andMask <<= bitOffsetInByte;
+            uint8_t bitsToAdd = (data[byteOffset] & andMask) >> bitOffsetInByte;
+
+            outVal |= (bitsToAdd << outValBitIdx);
+            outValBitIdx += bitsForThisByte;
+
+            bitOffset += bitsForThisByte;
+            numBits -= bitsForThisByte;
+        }
     }
 
     void GetBitCompressedValue(uint8_t* data, size_t dataLen, size_t bitOffset, uint8_t numBits, uint32_t& outVal)
     {
         if (((bitOffset + numBits) << 3) > dataLen) return;
+        if (numBits > sizeof(uint32_t) << 3) return;
+
+        uint8_t outValBitIdx = 0;
+
+        while (numBits > 0)
+        {
+            size_t byteOffset = bitOffset >> 3;
+            uint8_t bitOffsetInByte = (byteOffset << 3) - bitOffset;
+
+            size_t bitsForThisByte = min(numBits, uint8_t(8 - bitOffsetInByte));
+
+            auto andMask = GetLsbAndMask(bitsForThisByte);
+            andMask <<= bitOffsetInByte;
+            uint8_t bitsToAdd = (data[byteOffset] & andMask) >> bitOffsetInByte;
+
+            outVal |= (bitsToAdd << outValBitIdx);
+            outValBitIdx += bitsForThisByte;
+
+            bitOffset += bitsForThisByte;
+            numBits -= bitsForThisByte;
+        }    }
+
+    void SetBitCompressedValue(uint8_t* data, size_t dataLen, size_t bitOffset, uint8_t numBits, uint8_t val)
+    {
+        if (((bitOffset + numBits) << 3) > dataLen) return;
+        if (numBits > sizeof(val) << 3) return;
+
+        // Either track progress with index, or subtract from numBits and shift the val out
+        // uint8_t currValIdx = 0;
+
+        while (numBits > 0)
+        {
+            size_t byteOffset = bitOffset >> 3;
+            uint8_t bitOffsetInByte = (byteOffset << 3) - bitOffset;
+
+            size_t bitsForThisByte = min(numBits, uint8_t(8 - bitOffsetInByte));
+            auto andMask = GetLsbAndMask(bitsForThisByte);
+            uint8_t bitsToAdd = (val & andMask) << bitOffsetInByte;
+            data[byteOffset] |= bitsToAdd;
+
+            bitOffset += bitsForThisByte;
+            numBits -= bitsForThisByte;
+            // currValIdx += bitsForThisByte;
+
+            val >>= bitsForThisByte;
+        }
     }
+
+    void SetBitCompressedValue(uint8_t* data, size_t dataLen, size_t bitOffset, uint8_t numBits, uint16_t val)
+    {
+        if (((bitOffset + numBits) << 3) > dataLen) return;
+        if (numBits > sizeof(val) << 3) return;
+
+        // Either track progress with index, or subtract from numBits and shift the val out
+        // uint8_t currValIdx = 0;
+
+        while (numBits > 0)
+        {
+            size_t byteOffset = bitOffset >> 3;
+            uint8_t bitOffsetInByte = (byteOffset << 3) - bitOffset;
+
+            size_t bitsForThisByte = min(numBits, uint8_t(8 - bitOffsetInByte));
+            auto andMask = GetLsbAndMask(bitsForThisByte);
+            uint8_t bitsToAdd = (val & andMask) << bitOffsetInByte;
+            data[byteOffset] |= bitsToAdd;
+
+            bitOffset += bitsForThisByte;
+            numBits -= bitsForThisByte;
+            // currValIdx += bitsForThisByte;
+
+            val >>= bitsForThisByte;
+        }
+    }
+
+    void SetBitCompressedValue(uint8_t* data, size_t dataLen, size_t bitOffset, uint8_t numBits, uint32_t val)
+    {
+        if (((bitOffset + numBits) << 3) > dataLen) return;
+        if (numBits > sizeof(val) << 3) return;
+
+        // Either track progress with index, or subtract from numBits and shift the val out
+        // uint8_t currValIdx = 0;
+
+        while (numBits > 0)
+        {
+            size_t byteOffset = bitOffset >> 3;
+            uint8_t bitOffsetInByte = (byteOffset << 3) - bitOffset;
+
+            size_t bitsForThisByte = min(numBits, uint8_t(8 - bitOffsetInByte));
+            auto andMask = GetLsbAndMask(bitsForThisByte);
+            uint8_t bitsToAdd = (val & andMask) << bitOffsetInByte;
+            data[byteOffset] |= bitsToAdd;
+
+            bitOffset += bitsForThisByte;
+            numBits -= bitsForThisByte;
+            // currValIdx += bitsForThisByte;
+
+            val >>= bitsForThisByte;
+        }
+    }
+
+    uint8_t GetLsbAndMask(uint8_t numBits)
+    {
+        uint16_t mask = (1 << numBits) - 1;
+        return (uint8_t)mask;
+    }
+
+    #pragma endregion
 
     #pragma region WiFi
 
@@ -183,6 +319,7 @@ namespace TesseractCommon
         if (bytesAvailable < 1) return;
         
         if (bytesAvailable > 0)
+
         {
             memset(SpiSendBuffer, 0, SPI_BUFFER_SIZE + SPI_BUFFER_PADDING);
             stream.readBytes(SpiSendBuffer, bytesAvailable);
