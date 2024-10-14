@@ -3,8 +3,12 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiUdp.h>
-#include <ESP32DMASPISlave.h>
+
+#ifdef SPI_MASTER
 #include <ESP32DMASPIMaster.h>
+#else
+#include <ESP32DMASPISlave.h>
+#endif
 
 namespace TesseractCommon
 {
@@ -13,17 +17,32 @@ namespace TesseractCommon
 
     // Functions that take in a data buffer, a starting bit offset, a number of bits, and writes the value to the reference
 
+    uint8_t GetLsbAndMask(uint8_t numBits)
+    {
+        uint16_t mask = (1 << numBits) - 1;
+        return (uint8_t)mask;
+    }
+
     void GetBitCompressedValue(uint8_t* data, size_t dataLen, size_t bitOffset, uint8_t numBits, uint8_t& outVal)
     {
-        if (((bitOffset + numBits) << 3) > dataLen) return;
-        if (numBits > sizeof(uint8_t) << 3) return;
+        if (((bitOffset + numBits)) > (dataLen << 3))
+        {
+            // Serial.println("ERROR: GetBitCompressedValue: Attempted to read outside of data buffer");
+            return;
+        }
+
+        if (numBits > sizeof(uint8_t) << 3)
+        {
+            // Serial.println("ERROR: GetBitCompressedValue: Attempted to read more than 8 bits");
+            return;
+        }
 
         uint8_t outValBitIdx = 0;
 
         while (numBits > 0)
         {
             size_t byteOffset = bitOffset >> 3;
-            uint8_t bitOffsetInByte = (byteOffset << 3) - bitOffset;
+            uint8_t bitOffsetInByte = bitOffset - (byteOffset << 3);
 
             size_t bitsForThisByte = min(numBits, uint8_t(8 - bitOffsetInByte));
 
@@ -41,15 +60,24 @@ namespace TesseractCommon
 
     void GetBitCompressedValue(uint8_t* data, size_t dataLen, size_t bitOffset, uint8_t numBits, uint16_t& outVal)
     {
-        if (((bitOffset + numBits) << 3) > dataLen) return;
-        if (numBits > sizeof(uint16_t) << 3) return;
+        if (((bitOffset + numBits)) > (dataLen << 3))
+        {
+            // Serial.println("ERROR: GetBitCompressedValue: Attempted to read outside of data buffer");
+            return;
+        }
+
+        if (numBits > sizeof(uint16_t) << 3)
+        {
+            // Serial.println("ERROR: GetBitCompressedValue: Attempted to read more than 16 bits");
+            return;
+        }
 
         uint8_t outValBitIdx = 0;
 
         while (numBits > 0)
         {
             size_t byteOffset = bitOffset >> 3;
-            uint8_t bitOffsetInByte = (byteOffset << 3) - bitOffset;
+            uint8_t bitOffsetInByte = bitOffset - (byteOffset << 3);
 
             size_t bitsForThisByte = min(numBits, uint8_t(8 - bitOffsetInByte));
 
@@ -67,15 +95,24 @@ namespace TesseractCommon
 
     void GetBitCompressedValue(uint8_t* data, size_t dataLen, size_t bitOffset, uint8_t numBits, uint32_t& outVal)
     {
-        if (((bitOffset + numBits) << 3) > dataLen) return;
-        if (numBits > sizeof(uint32_t) << 3) return;
+        if (((bitOffset + numBits)) > (dataLen << 3))
+        {
+            // Serial.println("ERROR: GetBitCompressedValue: Attempted to read outside of data buffer");
+            return;
+        }
+
+        if (numBits > sizeof(uint32_t) << 3)
+        {
+            // Serial.println("ERROR: GetBitCompressedValue: Attempted to read more than 32 bits");
+            return;
+        }
 
         uint8_t outValBitIdx = 0;
 
         while (numBits > 0)
         {
             size_t byteOffset = bitOffset >> 3;
-            uint8_t bitOffsetInByte = (byteOffset << 3) - bitOffset;
+            uint8_t bitOffsetInByte = bitOffset - (byteOffset << 3);
 
             size_t bitsForThisByte = min(numBits, uint8_t(8 - bitOffsetInByte));
 
@@ -88,12 +125,22 @@ namespace TesseractCommon
 
             bitOffset += bitsForThisByte;
             numBits -= bitsForThisByte;
-        }    }
+        }    
+    }
 
     void SetBitCompressedValue(uint8_t* data, size_t dataLen, size_t bitOffset, uint8_t numBits, uint8_t val)
     {
-        if (((bitOffset + numBits) << 3) > dataLen) return;
-        if (numBits > sizeof(val) << 3) return;
+        if (((bitOffset + numBits)) > (dataLen << 3))
+        {
+            // Serial.println("ERROR: SetBitCompressedValue: Attempted to write outside of data buffer");
+            return;
+        }
+
+        if (numBits > sizeof(val) << 3)
+        {
+            // Serial.println("ERROR: SetBitCompressedValue: Attempted to write more than 8 bits");
+            return;
+        }
 
         // Either track progress with index, or subtract from numBits and shift the val out
         // uint8_t currValIdx = 0;
@@ -101,7 +148,7 @@ namespace TesseractCommon
         while (numBits > 0)
         {
             size_t byteOffset = bitOffset >> 3;
-            uint8_t bitOffsetInByte = (byteOffset << 3) - bitOffset;
+            uint8_t bitOffsetInByte = bitOffset - (byteOffset << 3);
 
             size_t bitsForThisByte = min(numBits, uint8_t(8 - bitOffsetInByte));
             auto andMask = GetLsbAndMask(bitsForThisByte);
@@ -118,8 +165,17 @@ namespace TesseractCommon
 
     void SetBitCompressedValue(uint8_t* data, size_t dataLen, size_t bitOffset, uint8_t numBits, uint16_t val)
     {
-        if (((bitOffset + numBits) << 3) > dataLen) return;
-        if (numBits > sizeof(val) << 3) return;
+        if (((bitOffset + numBits)) > (dataLen << 3))
+        {
+            // Serial.println("ERROR: SetBitCompressedValue: Attempted to write outside of data buffer");
+            return;
+        }
+
+        if (numBits > sizeof(val) << 3)
+        {
+            // Serial.println("ERROR: SetBitCompressedValue: Attempted to write more than 16 bits");
+            return;
+        }
 
         // Either track progress with index, or subtract from numBits and shift the val out
         // uint8_t currValIdx = 0;
@@ -127,9 +183,10 @@ namespace TesseractCommon
         while (numBits > 0)
         {
             size_t byteOffset = bitOffset >> 3;
-            uint8_t bitOffsetInByte = (byteOffset << 3) - bitOffset;
+            uint8_t bitOffsetInByte = bitOffset - (byteOffset << 3);
 
             size_t bitsForThisByte = min(numBits, uint8_t(8 - bitOffsetInByte));
+            Serial.printf("byteOffset: %d, bitOffsetInByte: %d, bitsForThisByte: %d\n", byteOffset, bitOffsetInByte, bitsForThisByte);
             auto andMask = GetLsbAndMask(bitsForThisByte);
             uint8_t bitsToAdd = (val & andMask) << bitOffsetInByte;
             data[byteOffset] |= bitsToAdd;
@@ -144,8 +201,17 @@ namespace TesseractCommon
 
     void SetBitCompressedValue(uint8_t* data, size_t dataLen, size_t bitOffset, uint8_t numBits, uint32_t val)
     {
-        if (((bitOffset + numBits) << 3) > dataLen) return;
-        if (numBits > sizeof(val) << 3) return;
+        if (((bitOffset + numBits)) > (dataLen << 3))
+        {
+            // Serial.println("ERROR: SetBitCompressedValue: Attempted to write outside of data buffer");
+            return;
+        }
+
+        if (numBits > sizeof(val) << 3)
+        {
+            // Serial.println("ERROR: SetBitCompressedValue: Attempted to write more than 32 bits");
+            return;
+        }
 
         // Either track progress with index, or subtract from numBits and shift the val out
         // uint8_t currValIdx = 0;
@@ -153,7 +219,7 @@ namespace TesseractCommon
         while (numBits > 0)
         {
             size_t byteOffset = bitOffset >> 3;
-            uint8_t bitOffsetInByte = (byteOffset << 3) - bitOffset;
+            uint8_t bitOffsetInByte = bitOffset - (byteOffset << 3);
 
             size_t bitsForThisByte = min(numBits, uint8_t(8 - bitOffsetInByte));
             auto andMask = GetLsbAndMask(bitsForThisByte);
@@ -166,12 +232,6 @@ namespace TesseractCommon
 
             val >>= bitsForThisByte;
         }
-    }
-
-    uint8_t GetLsbAndMask(uint8_t numBits)
-    {
-        uint16_t mask = (1 << numBits) - 1;
-        return (uint8_t)mask;
     }
 
     #pragma endregion
@@ -189,6 +249,14 @@ namespace TesseractCommon
     WiFiServer *Server = nullptr;
     WiFiClient Client;
     WiFiUDP UdpConnection;
+
+    void WiFiEvent(WiFiEvent_t event)
+    {
+        switch (event)
+        {
+            
+        }
+    }
 
     void EstablishWiFiConnection(
         wifi_mode_t mode = WIFI_MODE_STA,
@@ -230,13 +298,7 @@ namespace TesseractCommon
         UdpConnection.begin(addr, port);
     }
 
-    void WiFiEvent(WiFiEvent_t event)
-    {
-        switch (event)
-        {
-            
-        }
-    }
+    
 
     // void CheckForWiFiClient()
     // {
@@ -263,12 +325,16 @@ namespace TesseractCommon
     uint8_t *SpiReceiveBuffer = nullptr;
     uint8_t *SpiSendBuffer = nullptr;
 
+#ifdef SPI_MASTER
     ESP32DMASPI::Master master;
+#else
     ESP32DMASPI::Slave slave;
+#endif
 
     bool SpiInitialized = false;
     bool SpiMaster = false;
 
+#ifdef SPI_MASTER
     void EstablishSPIMaster(
         size_t bufferSize = SPI_BUFFER_SIZE,
         size_t queueSize = SPI_QUEUE_SIZE,
@@ -289,8 +355,7 @@ namespace TesseractCommon
 
         SpiInitialized = true;
     }
-
-
+#else
     void EstablishSPISlave(
         size_t bufferSize = SPI_BUFFER_SIZE,
         size_t queueSize = SPI_QUEUE_SIZE,
@@ -309,8 +374,10 @@ namespace TesseractCommon
 
         SpiInitialized = true;
     }
+#endif
 
     // Streams data from master to slave. The stream will be a udp connection
+    #ifdef SPI_MASTER
     void StreamDataToMasterBuffer(Stream &stream)
     {
         if (!SpiInitialized) return;
@@ -327,6 +394,7 @@ namespace TesseractCommon
 
         master.transfer(SpiSendBuffer, SpiReceiveBuffer, bytesAvailable);
     }
+    #endif
 
     #pragma endregion
 }

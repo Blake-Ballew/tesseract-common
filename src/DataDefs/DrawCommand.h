@@ -47,7 +47,7 @@ namespace TesseractCommon
         uint16_t padding; // 10 bits
     };
 
-    struct SetZLevelQuad
+    struct SetZLevel
     {
         uint8_t quadrant; // 2 bits
         uint8_t zLevel; // 8 bits
