@@ -334,7 +334,7 @@ namespace TesseractCommon
 #endif
 
     bool SpiInitialized = false;
-    bool SpiMaster = false;
+    // bool SpiMaster = false;
 
 #ifdef SPI_MASTER
     void EstablishSPIMaster(
@@ -345,7 +345,7 @@ namespace TesseractCommon
         int csPin = CS_PIN
     )
     {
-        SpiMaster = true;
+        // SpiMaster = true;
 
         CS_PIN = csPin;
         pinMode(csPin, OUTPUT);
@@ -370,7 +370,7 @@ namespace TesseractCommon
         int csPin = CS_PIN
     )
     {
-        SpiMaster = false;
+        // SpiMaster = false;
 
         CS_PIN = csPin;
         pinMode(csPin, INPUT);
@@ -388,12 +388,12 @@ namespace TesseractCommon
 #endif
 
     #ifdef SPI_MASTER
-    void SendBytesToMasterBuffer(uint8_t *data, size_t length, size_t timeoutMS = 100)
+    void SendBytesToMasterBuffer(size_t length, size_t timeoutMS = 100)
     {
         if (!SpiInitialized) return;
 
         digitalWrite(CS_PIN, LOW);
-        master.transfer(data, SpiReceiveBuffer, length, timeoutMS);
+        master.transfer(SpiSendBuffer, SpiReceiveBuffer, length, timeoutMS);
         digitalWrite(CS_PIN, HIGH);
     }
     #endif
