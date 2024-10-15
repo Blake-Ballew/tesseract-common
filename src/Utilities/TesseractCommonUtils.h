@@ -38,6 +38,7 @@ namespace TesseractCommon
         }
 
         uint8_t outValBitIdx = 0;
+        outVal = 0;
 
         while (numBits > 0)
         {
@@ -73,6 +74,7 @@ namespace TesseractCommon
         }
 
         uint8_t outValBitIdx = 0;
+        outVal = 0;
 
         while (numBits > 0)
         {
@@ -108,6 +110,7 @@ namespace TesseractCommon
         }
 
         uint8_t outValBitIdx = 0;
+        outVal = 0;
 
         while (numBits > 0)
         {
