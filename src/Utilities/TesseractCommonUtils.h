@@ -392,9 +392,9 @@ namespace TesseractCommon
     {
         if (!SpiInitialized) return;
 
-        digitalWrite(CS_PIN, LOW);
+        // digitalWrite(CS_PIN, LOW);
         master.transfer(SpiSendBuffer, SpiReceiveBuffer, length, timeoutMS);
-        digitalWrite(CS_PIN, HIGH);
+        // digitalWrite(CS_PIN, HIGH);
     }
     #endif
 
