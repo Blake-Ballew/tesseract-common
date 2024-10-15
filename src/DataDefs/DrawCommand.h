@@ -34,8 +34,8 @@ namespace TesseractCommon
 
         void DecodeFromBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
         {
+            zLevel = 0;
             GetBitCompressedValue(data, dataLen, bitOffset, 8, zLevel);
-
             bitOffset += 8;
         }
 
@@ -52,8 +52,8 @@ namespace TesseractCommon
 
         void DecodeFromBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
         {
+            offsetNanoseconds = 0;
             GetBitCompressedValue(data, dataLen, bitOffset, 24, offsetNanoseconds);
-
             bitOffset += 24;
         }
 
@@ -70,8 +70,8 @@ namespace TesseractCommon
 
         void DecodeFromBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
         {
+            timeScaleFactor = 0;
             GetBitCompressedValue(data, dataLen, bitOffset, 24, timeScaleFactor);
-
             bitOffset += 24;
         }
 
@@ -88,6 +88,7 @@ namespace TesseractCommon
 
         void DecodeFromBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
         {
+            padding = 0;
             GetBitCompressedValue(data, dataLen, bitOffset, 10, padding);
             bitOffset += 10;
         }
@@ -106,9 +107,11 @@ namespace TesseractCommon
 
         void DecodeFromBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
         {
+            quadrant = 0;
             GetBitCompressedValue(data, dataLen, bitOffset, 2, quadrant);
             bitOffset += 2;
 
+            zLevel = 0;
             GetBitCompressedValue(data, dataLen, bitOffset, 8, zLevel);
             bitOffset += 8;
         }
@@ -133,11 +136,17 @@ namespace TesseractCommon
 
         void DecodeFromBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
         {
+            futureUse = 0;
             GetBitCompressedValue(data, dataLen, bitOffset, 10, futureUse);
             bitOffset += 10;
 
+            colorIdx = 0;
             GetBitCompressedValue(data, dataLen, bitOffset, 8, colorIdx);
             bitOffset += 8;
+
+            red = 0;
+            green = 0;
+            blue = 0;
 
             GetBitCompressedValue(data, dataLen, bitOffset, 8, red);
             bitOffset += 8;
@@ -164,6 +173,11 @@ namespace TesseractCommon
 
         void DecodeFromBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
         {
+            drawMode = 0;
+            zStart = 0;
+            zEnd = 0;
+            color = 0;
+
             GetBitCompressedValue(data, dataLen, bitOffset, 2, drawMode);
             bitOffset += 2;
 
@@ -201,6 +215,10 @@ namespace TesseractCommon
 
         void DecodeFromBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
         {
+            rayIdx = 0;
+            ledIdx = 0;
+            color = 0;
+
             GetBitCompressedValue(data, dataLen, bitOffset, 10, rayIdx);
             bitOffset += 10;
 
@@ -235,6 +253,13 @@ namespace TesseractCommon
 
         void DecodeFromBitStream(uint8_t *data, size_t dataLen, size_t &bitOffset)
         {
+            drawMode = 0;
+            xPos = 0;
+            yPos = 0;
+            width = 0;
+            height = 0;
+            color = 0;
+            
             GetBitCompressedValue(data, dataLen, bitOffset, 2, drawMode);
             bitOffset += 2;
 
