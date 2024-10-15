@@ -325,6 +325,8 @@ namespace TesseractCommon
     uint8_t *SpiReceiveBuffer = nullptr;
     uint8_t *SpiSendBuffer = nullptr;
 
+    int CS_PIN = 10;
+
 #ifdef SPI_MASTER
     ESP32DMASPI::Master master;
 #else
@@ -339,10 +341,15 @@ namespace TesseractCommon
         size_t bufferSize = SPI_BUFFER_SIZE,
         size_t queueSize = SPI_QUEUE_SIZE,
         size_t spiMode = SPI_MODE0,
-        size_t frequency = SPI_FREQUENCY
+        size_t frequency = SPI_FREQUENCY,
+        int csPin = CS_PIN
     )
     {
         SpiMaster = true;
+
+        CS_PIN = csPin;
+        pinMode(csPin, OUTPUT);
+        digitalWrite(csPin, HIGH);
 
         SpiSendBuffer = master.allocDMABuffer(bufferSize + SPI_BUFFER_PADDING);
         SpiReceiveBuffer = master.allocDMABuffer(bufferSize + SPI_BUFFER_PADDING);
@@ -359,10 +366,14 @@ namespace TesseractCommon
     void EstablishSPISlave(
         size_t bufferSize = SPI_BUFFER_SIZE,
         size_t queueSize = SPI_QUEUE_SIZE,
-        size_t spiMode = SPI_MODE0
+        size_t spiMode = SPI_MODE0,
+        int csPin = CS_PIN
     )
     {
         SpiMaster = false;
+
+        CS_PIN = csPin;
+        pinMode(csPin, INPUT);
 
         SpiSendBuffer = slave.allocDMABuffer(bufferSize + SPI_BUFFER_PADDING);
         SpiReceiveBuffer = slave.allocDMABuffer(bufferSize + SPI_BUFFER_PADDING);
@@ -381,7 +392,9 @@ namespace TesseractCommon
     {
         if (!SpiInitialized) return;
 
+        digitalWrite(CS_PIN, LOW);
         master.transfer(data, SpiReceiveBuffer, length, timeoutMS);
+        digitalWrite(CS_PIN, HIGH);
     }
     #endif
 
@@ -401,7 +414,9 @@ namespace TesseractCommon
             stream.readBytes(SpiSendBuffer, bytesAvailable);
         }
 
+        digitalWrite(CS_PIN, LOW);
         master.transfer(SpiSendBuffer, SpiReceiveBuffer, bytesAvailable);
+        digitalWrite(CS_PIN, HIGH);
     }
     #endif
 
