@@ -376,6 +376,15 @@ namespace TesseractCommon
     }
 #endif
 
+    #ifdef SPI_MASTER
+    void SendBytesToMasterBuffer(uint8_t *data, size_t length, size_t timeoutMS = 100)
+    {
+        if (!SpiInitialized) return;
+
+        master.transfer(data, SpiReceiveBuffer, length, timeoutMS);
+    }
+    #endif
+
     // Streams data from master to slave. The stream will be a udp connection
     #ifdef SPI_MASTER
     void StreamDataToMasterBuffer(Stream &stream)
