@@ -1,7 +1,6 @@
 #pragma once
 
-#include <Arduino.h>
-#include <ESP32DMASPISlave.h>
+#include "../include/ESP32DMASPISlave.h"
 
 namespace TesseractCommon
 {
