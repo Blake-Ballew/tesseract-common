@@ -51,12 +51,15 @@ namespace TesseractCommon
             memcpy(SpiSendBuffer, data, length);
 
             digitalWrite(_csPin, LOW);
-            _master.transfer(SpiSendBuffer, SpiReceiveBuffer, length, timeoutMS);
+            // delayMicroseconds(1);
+            auto sent = _master.transfer(SpiSendBuffer, SpiReceiveBuffer, length);
+            Serial.printf("Sent %zu bytes to mobo.\n", sent);
+            // delayMicroseconds(1);
             digitalWrite(_csPin, HIGH);
         }
 
     private:
-        ESP32DMASPIMaster::Master _master;
+        ESP32DMASPI::Master _master;
         bool _initialized = false;
 
         int _csPin = 10; // Default CS pin

@@ -11,9 +11,6 @@
       }
     ],
     "license": "MIT",
-    "dependencies": {
-      "ESP32DMASPI": "https://github.com/hideakitai/ESP32DMASPI.git"
-    },
     "frameworks": "*",
     "platforms": "*",
     "build": {

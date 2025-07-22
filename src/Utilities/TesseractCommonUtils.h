@@ -256,6 +256,7 @@ namespace TesseractCommon
 
     void WiFiEvent(WiFiEvent_t event)
     {
+        Serial.println("WiFi Event: " + String(event));
         switch (event)
         {
             
@@ -270,7 +271,7 @@ namespace TesseractCommon
         const char * password = Password
         )
     {
-        WiFi.mode(WIFI_STA);
+        WiFi.mode(mode);
         WiFi.setHostname(hostname);
 
         if (mode == WIFI_MODE_STA)

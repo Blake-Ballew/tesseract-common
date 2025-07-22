@@ -6,26 +6,30 @@
 #include <SPI.h>
 #include <driver/spi_master.h>
 #include <esp_log.h>
+#include <soc/soc_caps.h>
 #include <vector>
 #include <string>
 #include <memory>
 
-#ifndef ARDUINO_ESP32_DMA_SPI_NAMESPACE_BEGIN
-#define ARDUINO_ESP32_DMA_SPI_NAMESPACE_BEGIN \
+#ifndef ARDUINO_ESP32_DMA_SPI_MASTER_NAMESPACE_BEGIN
+#define ARDUINO_ESP32_DMA_SPI_MASTER_NAMESPACE_BEGIN \
     namespace arduino {                       \
     namespace esp32 {                         \
         namespace spi {                       \
-            namespace dma {
+            namespace dma {                   \
+                namespace master {            
+
 #endif
-#ifndef ARDUINO_ESP32_DMA_SPI_NAMESPACE_END
-#define ARDUINO_ESP32_DMA_SPI_NAMESPACE_END \
+#ifndef ARDUINO_ESP32_DMA_SPI_MASTER_NAMESPACE_END
+#define ARDUINO_ESP32_DMA_SPI_MASTER_NAMESPACE_END \
     }                                       \
     }                                       \
     }                                       \
-    }
+    }                                       \
+    }   // namespace arduino::esp32::spi::dma::master
 #endif
 
-ARDUINO_ESP32_DMA_SPI_NAMESPACE_BEGIN
+ARDUINO_ESP32_DMA_SPI_MASTER_NAMESPACE_BEGIN
 
 static constexpr const char *TAG = "ESP32DMASPIMaster";
 static constexpr int SPI_MASTER_TASK_STASCK_SIZE = 1024 * 2;
@@ -53,11 +57,17 @@ struct spi_master_context_t
         .address_bits = 0,  // 0-64
         .dummy_bits = 0,
         .mode = SPI_MODE0,
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 1)
+        .clock_source = SPI_CLK_SRC_DEFAULT,
+#endif
         .duty_cycle_pos = 128,  // default: 128
         .cs_ena_pretrans = 0,   // only for half-duplex
         .cs_ena_posttrans = 0,
         .clock_speed_hz = SPI_MASTER_FREQ_8M,
         .input_delay_ns = 0,
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 1)
+        .sample_point = SPI_SAMPLING_POINT_PHASE_0,
+#endif
         .spics_io_num = SS,
         .flags = 0,
         .queue_size = 1,
@@ -74,12 +84,15 @@ struct spi_master_context_t
         .data5_io_num = -1,
         .data6_io_num = -1,
         .data7_io_num = -1,
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 1)
+        .data_io_default_level = false,
+#endif
         .max_transfer_sz = 4092,  // default: 4092 if DMA enabled, SOC_SPI_MAXIMUM_BUFFER_SIZE if DMA disabled
         .flags = SPICOMMON_BUSFLAG_MASTER,
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
-        .isr_cpu_id = INTR_CPU_ID_AUTO,
-#elif ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 2, 0)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 2, 0)
         .isr_cpu_id = ESP_INTR_CPU_AFFINITY_AUTO,
+#elif ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
+        .isr_cpu_id = INTR_CPU_ID_AUTO,
 #endif
         .intr_flags = 0,
     };
@@ -92,6 +105,7 @@ struct spi_transaction_context_t
 {
     spi_transaction_ext_t *trans_ext;
     size_t size;
+    bool is_continuous_transactions;
     TickType_t timeout_ticks;
 };
 
@@ -157,11 +171,19 @@ void spi_master_task(void *arg)
             assert(trans_ctx.size <= ctx->if_cfg.queue_size);
             xQueueOverwrite(s_in_flight_mailbox_handle, &trans_ctx.size);
 
+            // begin continuous transactions if requested
+            if (trans_ctx.is_continuous_transactions) {
+                spi_device_acquire_bus(device_handle, portMAX_DELAY);
+            }
+
             // execute new transaction if transaction request received from main task
             ESP_LOGD(TAG, "new transaction request received (size = %u)", trans_ctx.size);
             std::vector<esp_err_t> errs;
             errs.reserve(trans_ctx.size);
             for (size_t i = 0; i < trans_ctx.size; ++i) {
+                if (trans_ctx.is_continuous_transactions && i + 1 < trans_ctx.size) {
+                    trans_ctx.trans_ext[i].base.flags |= SPI_TRANS_CS_KEEP_ACTIVE;
+                }
                 spi_transaction_t *trans = (spi_transaction_t*)(&trans_ctx.trans_ext[i]);
                 esp_err_t err = spi_device_queue_trans(device_handle, trans, trans_ctx.timeout_ticks);
                 if (err != ESP_OK) {
@@ -204,6 +226,11 @@ void spi_master_task(void *arg)
                 xQueueOverwrite(s_in_flight_mailbox_handle, &num_rest_in_flight);
             }
 
+            // end continuous transactions if requested
+            if (trans_ctx.is_continuous_transactions) {
+                spi_device_release_bus(device_handle);
+            }
+
             // should be deleted because the ownership is moved from main task
             delete[] trans_ctx.trans_ext;
 
@@ -238,6 +265,7 @@ class Master
     std::vector<spi_transaction_ext_t> transactions;
     spi_master_cb_user_context_t cb_user_ctx;
     TaskHandle_t spi_task_handle {NULL};
+    bool is_continuous_transactions {false};
 
 public:
     /// @brief initialize SPI with the default pin assignment for HSPI, FSPI or VSPI
@@ -290,6 +318,7 @@ public:
         this->ctx.bus_cfg.data1_io_num = data1;
         this->ctx.bus_cfg.data2_io_num = data2;
         this->ctx.bus_cfg.data3_io_num = data3;
+        this->ctx.bus_cfg.flags |= SPICOMMON_BUSFLAG_QUAD;
         return this->initialize(spi_bus);
     }
     /// @brief initialize SPI with HSPI/FSPI/VSPI and Octo SPI pins
@@ -316,6 +345,7 @@ public:
         this->ctx.bus_cfg.data5_io_num = data5;
         this->ctx.bus_cfg.data6_io_num = data6;
         this->ctx.bus_cfg.data7_io_num = data7;
+        this->ctx.bus_cfg.flags |= SPICOMMON_BUSFLAG_OCTAL;
         return this->initialize(spi_bus);
     }
 
@@ -469,6 +499,7 @@ public:
         spi_transaction_context_t trans_ctx {
             .trans_ext = new spi_transaction_ext_t[this->transactions.size()],
             .size = this->transactions.size(),
+            .is_continuous_transactions = this->is_continuous_transactions,
             .timeout_ticks = timeout_ms == 0 ? portMAX_DELAY : pdMS_TO_TICKS(timeout_ms),
         };
         for (size_t i = 0; i < this->transactions.size(); i++) {
@@ -604,6 +635,15 @@ public:
         this->setClockSpeedHz(freq);
     }
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 1)
+    /// @brief set default data io level
+    /// @param level default data io level
+    void setDataIODefaultLevel(bool level)
+    {
+        this->ctx.bus_cfg.data_io_default_level = level;
+    }
+#endif
+
     /// @brief set max transfer size in bytes
     /// @param size max bytes to transfer
     void setMaxTransferSize(size_t size)
@@ -650,6 +690,15 @@ public:
     /// @param n
     void setSpiMode(uint8_t m) { this->ctx.if_cfg.mode = m; }
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 1)
+    /// @brief Select SPI clock source, SPI_CLK_SRC_DEFAULT by default.
+    /// @param clk_src
+    void setClockSource(spi_clock_source_t clk_src)
+    {
+        this->ctx.if_cfg.clock_source = clk_src;
+    }
+#endif
+
     /// @brief Duty cycle of positive clock, in 1/256th increments (128 = 50%/50% duty). Setting this to 0 (=not setting it) is equivalent to setting this to 128.
     /// @param n
     void setDutyCyclePos(uint8_t n) { this->ctx.if_cfg.duty_cycle_pos = n; }
@@ -661,6 +710,15 @@ public:
     /// @brief Maximum data valid time of slave. The time required between SCLK and MISO valid, including the possible clock delay from slave to master. The driver uses this value to give an extra delay before the MISO is ready on the line. Leave at 0 unless you know you need a delay. For better timing performance at high frequency (over 8MHz), it's suggest to have the right value.
     /// @param n
     void setInputDelayNs(int n) { this->ctx.if_cfg.input_delay_ns = n; }
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 1)
+    /// @brief Sample point tuning of spi master receiving bit.
+    /// @param sample_point
+    void setSamplePoint(spi_sampling_point_t sample_point)
+    {
+        this->ctx.if_cfg.sample_point = sample_point;
+    }
+#endif
 
     /// @brief Bitwise OR of SPI_DEVICE_* flags.
     /// @param flags
@@ -699,6 +757,16 @@ public:
         this->cb_user_ctx.post.user_arg = arg;
     }
 
+    /// @brief enable continuous transactions in the next sequence of transactions
+    void enableContinuousTransactions() {
+        this->is_continuous_transactions = true;
+    }
+
+    /// @brief disable continuous transactions in the next sequence of transactions
+    void disableContinuousTransactions() {
+        this->is_continuous_transactions = false;
+    }
+
 private:
     static spi_host_device_t hostFromBusNumber(uint8_t spi_bus)
     {
@@ -733,7 +801,11 @@ private:
 
         // create spi master task
         std::string task_name = std::string("spi_master_task_") + std::to_string(this->ctx.if_cfg.spics_io_num);
+#if SOC_CPU_CORES_NUM == 1
+        int ret = xTaskCreatePinnedToCore(spi_master_task, task_name.c_str(), SPI_MASTER_TASK_STASCK_SIZE, static_cast<void*>(&this->ctx), SPI_MASTER_TASK_PRIORITY, &this->spi_task_handle, 0);
+#else
         int ret = xTaskCreatePinnedToCore(spi_master_task, task_name.c_str(), SPI_MASTER_TASK_STASCK_SIZE, static_cast<void*>(&this->ctx), SPI_MASTER_TASK_PRIORITY, &this->spi_task_handle, 1);
+#endif
         if (ret != pdPASS) {
             ESP_LOGE(TAG, "failed to create spi_master_task: %d", ret);
             return false;
@@ -755,8 +827,14 @@ private:
     ) {
         spi_transaction_ext_t trans;
 
+        if (this->ctx.bus_cfg.flags & SPICOMMON_BUSFLAG_DUAL) {
+            trans.base.flags = flags | SPI_TRANS_MODE_DIO;
+        } else if (this->ctx.bus_cfg.flags & SPICOMMON_BUSFLAG_QUAD) {
+            trans.base.flags = flags | SPI_TRANS_MODE_QIO;
+        } else if (this->ctx.bus_cfg.flags & SPICOMMON_BUSFLAG_OCTAL) {
+            trans.base.flags = flags | SPI_TRANS_MODE_OCT;
+        }
         // allow variable cmd/addr/dummy bits based on spi_transaction_ext_t
-        trans.base.flags = flags;
         trans.base.cmd = cmd;
         trans.base.addr = addr;
         trans.base.length = 8 * size;  // in bit size
@@ -797,8 +875,8 @@ private:
     }
 };
 
-ARDUINO_ESP32_DMA_SPI_NAMESPACE_END
+ARDUINO_ESP32_DMA_SPI_MASTER_NAMESPACE_END
 
-namespace ESP32DMASPI = arduino::esp32::spi::dma;
+namespace ESP32DMASPIMaster = arduino::esp32::spi::dma::master;
 
 #endif  // ESP32DMASPI_MASTER_H

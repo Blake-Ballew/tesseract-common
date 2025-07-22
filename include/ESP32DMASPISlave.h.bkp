@@ -1,35 +1,36 @@
 #pragma once
-#ifndef ESP32DMASPI_MASTER_H
-#define ESP32DMASPI_MASTER_H
+#ifndef ESP32DMASPI_SLAVE_H
+#define ESP32DMASPI_SLAVE_H
 
 #include <Arduino.h>
 #include <SPI.h>
-#include <driver/spi_master.h>
-#include <esp_log.h>
+#include <driver/spi_slave.h>
+#include <soc/soc_caps.h>
 #include <vector>
 #include <string>
-#include <memory>
 
-#ifndef ARDUINO_ESP32_DMA_SPI_NAMESPACE_BEGIN
-#define ARDUINO_ESP32_DMA_SPI_NAMESPACE_BEGIN \
+#ifndef ARDUINO_ESP32_DMA_SPI_SLAVE_NAMESPACE_BEGIN
+#define ARDUINO_ESP32_DMA_SPI_SLAVE_NAMESPACE_BEGIN \
     namespace arduino {                       \
     namespace esp32 {                         \
         namespace spi {                       \
-            namespace dma {
+            namespace dma {                   \
+                namespace slave {
 #endif
-#ifndef ARDUINO_ESP32_DMA_SPI_NAMESPACE_END
-#define ARDUINO_ESP32_DMA_SPI_NAMESPACE_END \
+#ifndef ARDUINO_ESP32_DMA_SPI_SLAVE_NAMESPACE_END
+#define ARDUINO_ESP32_DMA_SPI_SLAVE_NAMESPACE_END \
     }                                       \
     }                                       \
     }                                       \
-    }
+    }                                       \
+    }   // namespace arduino::esp32::spi::dma::slave
 #endif
 
-ARDUINO_ESP32_DMA_SPI_NAMESPACE_BEGIN
+ARDUINO_ESP32_DMA_SPI_SLAVE_NAMESPACE_BEGIN
 
-static constexpr const char *TAG = "ESP32DMASPIMaster";
-static constexpr int SPI_MASTER_TASK_STASCK_SIZE = 1024 * 2;
-static constexpr int SPI_MASTER_TASK_PRIORITY = 5;
+static constexpr const char *TAG = "ESP32DMASPISlave";
+static constexpr int SPI_SLAVE_TASK_STASCK_SIZE = 1024 * 2;
+static constexpr int SPI_SLAVE_TASK_PRIORITY = 5;
 
 static QueueHandle_t s_trans_queue_handle {NULL};
 static constexpr int SEND_TRANS_QUEUE_TIMEOUT_TICKS = pdMS_TO_TICKS(5000);
@@ -42,27 +43,19 @@ static constexpr int SEND_TRANS_ERROR_TIMEOUT_TICKS = pdMS_TO_TICKS(5000);
 static constexpr int RECV_TRANS_ERROR_TIMEOUT_TICKS = 0;
 static QueueHandle_t s_in_flight_mailbox_handle {NULL};
 
-using spi_master_user_cb_t = std::function<void(spi_transaction_t*, void*)>;
+using spi_slave_user_cb_t = std::function<void(spi_slave_transaction_t*, void*)>;
 
-void spi_master_pre_cb(spi_transaction_t* trans);
-void spi_master_post_cb(spi_transaction_t* trans);
-struct spi_master_context_t
+void spi_slave_post_setup_cb(spi_slave_transaction_t* trans);
+void spi_slave_post_trans_cb(spi_slave_transaction_t* trans);
+struct spi_slave_context_t
 {
-    spi_device_interface_config_t if_cfg {
-        .command_bits = 0,  // 0-16
-        .address_bits = 0,  // 0-64
-        .dummy_bits = 0,
-        .mode = SPI_MODE0,
-        .duty_cycle_pos = 128,  // default: 128
-        .cs_ena_pretrans = 0,   // only for half-duplex
-        .cs_ena_posttrans = 0,
-        .clock_speed_hz = SPI_MASTER_FREQ_8M,
-        .input_delay_ns = 0,
+    spi_slave_interface_config_t if_cfg {
         .spics_io_num = SS,
         .flags = 0,
         .queue_size = 1,
-        .pre_cb = spi_master_pre_cb,
-        .post_cb = spi_master_post_cb,
+        .mode = SPI_MODE0,
+        .post_setup_cb = spi_slave_post_setup_cb,
+        .post_trans_cb = spi_slave_post_trans_cb,
     };
     spi_bus_config_t bus_cfg {
         .mosi_io_num = MOSI, // union with data0_io_num
@@ -74,12 +67,15 @@ struct spi_master_context_t
         .data5_io_num = -1,
         .data6_io_num = -1,
         .data7_io_num = -1,
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 1)
+        .data_io_default_level = false,
+#endif
         .max_transfer_sz = 4092,  // default: 4092 if DMA enabled, SOC_SPI_MAXIMUM_BUFFER_SIZE if DMA disabled
-        .flags = SPICOMMON_BUSFLAG_MASTER,
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
-        .isr_cpu_id = INTR_CPU_ID_AUTO,
-#elif ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 2, 0)
+        .flags = SPICOMMON_BUSFLAG_SLAVE,
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 2, 0)
         .isr_cpu_id = ESP_INTR_CPU_AFFINITY_AUTO,
+#elif ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
+        .isr_cpu_id = INTR_CPU_ID_AUTO,
 #endif
         .intr_flags = 0,
     };
@@ -90,52 +86,47 @@ struct spi_master_context_t
 
 struct spi_transaction_context_t
 {
-    spi_transaction_ext_t *trans_ext;
+    spi_slave_transaction_t *trans;
     size_t size;
     TickType_t timeout_ticks;
 };
 
-struct spi_master_cb_user_context_t
+struct spi_slave_cb_user_context_t
 {
     struct {
-        spi_master_user_cb_t user_cb;
+        spi_slave_user_cb_t user_cb;
         void *user_arg;
-    } pre;
+    } post_setup;
     struct {
-        spi_master_user_cb_t user_cb;
+        spi_slave_user_cb_t user_cb;
         void *user_arg;
-    } post;
+    } post_trans;
 };
 
-void IRAM_ATTR spi_master_pre_cb(spi_transaction_t* trans)
+void IRAM_ATTR spi_slave_post_setup_cb(spi_slave_transaction_t* trans)
 {
-    spi_master_cb_user_context_t *user_ctx = static_cast<spi_master_cb_user_context_t*>(trans->user);
-    if (user_ctx->pre.user_cb) {
-        user_ctx->pre.user_cb(trans, user_ctx->pre.user_arg);
+    spi_slave_cb_user_context_t *user_ctx = static_cast<spi_slave_cb_user_context_t*>(trans->user);
+    if (user_ctx->post_setup.user_cb) {
+        user_ctx->post_setup.user_cb(trans, user_ctx->post_setup.user_arg);
     }
 }
 
-void IRAM_ATTR spi_master_post_cb(spi_transaction_t* trans)
+void IRAM_ATTR spi_slave_post_trans_cb(spi_slave_transaction_t* trans)
 {
-    spi_master_cb_user_context_t *user_ctx = static_cast<spi_master_cb_user_context_t*>(trans->user);
-    if (user_ctx->post.user_cb) {
-        user_ctx->post.user_cb(trans, user_ctx->post.user_arg);
+    spi_slave_cb_user_context_t *user_ctx = static_cast<spi_slave_cb_user_context_t*>(trans->user);
+    if (user_ctx->post_trans.user_cb) {
+        user_ctx->post_trans.user_cb(trans, user_ctx->post_trans.user_arg);
     }
 }
 
-void spi_master_task(void *arg)
+void spi_slave_task(void *arg)
 {
-    ESP_LOGD(TAG, "spi_master_task start");
+    ESP_LOGD(TAG, "spi_slave_task start");
 
-    spi_master_context_t *ctx = static_cast<spi_master_context_t*>(arg);
+    spi_slave_context_t *ctx = static_cast<spi_slave_context_t*>(arg);
 
-    // initialize spi bus
-    esp_err_t err = spi_bus_initialize(ctx->host, &ctx->bus_cfg, ctx->dma_chan);
-    assert(err == ESP_OK);
-
-    // add spi device
-    spi_device_handle_t device_handle;
-    err = spi_bus_add_device(ctx->host, &ctx->if_cfg, &device_handle);
+    // initialize spi slave
+    esp_err_t err = spi_slave_initialize(ctx->host, &ctx->bus_cfg, &ctx->if_cfg, ctx->dma_chan);
     assert(err == ESP_OK);
 
     // initialize queues
@@ -153,7 +144,7 @@ void spi_master_task(void *arg)
         spi_transaction_context_t trans_ctx;
         if (xQueueReceive(s_trans_queue_handle, &trans_ctx, RECV_TRANS_QUEUE_TIMEOUT_TICKS)) {
             // update in-flight count
-            assert(trans_ctx.trans_ext != nullptr);
+            assert(trans_ctx.trans != nullptr);
             assert(trans_ctx.size <= ctx->if_cfg.queue_size);
             xQueueOverwrite(s_in_flight_mailbox_handle, &trans_ctx.size);
 
@@ -162,10 +153,10 @@ void spi_master_task(void *arg)
             std::vector<esp_err_t> errs;
             errs.reserve(trans_ctx.size);
             for (size_t i = 0; i < trans_ctx.size; ++i) {
-                spi_transaction_t *trans = (spi_transaction_t*)(&trans_ctx.trans_ext[i]);
-                esp_err_t err = spi_device_queue_trans(device_handle, trans, trans_ctx.timeout_ticks);
+                spi_slave_transaction_t *trans = &trans_ctx.trans[i];
+                esp_err_t err = spi_slave_queue_trans(ctx->host, trans, trans_ctx.timeout_ticks);
                 if (err != ESP_OK) {
-                    ESP_LOGE(TAG, "failed to execute spi_device_queue_trans(): 0x%X", err);
+                    ESP_LOGE(TAG, "failed to execute spi_slave_queue_trans(): 0x%X", err);
                 }
                 errs.push_back(err);
             }
@@ -178,16 +169,16 @@ void spi_master_task(void *arg)
                 // wait for completion of next transaction
                 size_t num_received_bytes = 0;
                 if (errs[i] == ESP_OK) {
-                    spi_transaction_t *rtrans;
-                    esp_err_t err = spi_device_get_trans_result(device_handle, &rtrans, trans_ctx.timeout_ticks);
+                    spi_slave_transaction_t *rtrans;
+                    esp_err_t err = spi_slave_get_trans_result(ctx->host, &rtrans, trans_ctx.timeout_ticks);
                     if (err != ESP_OK) {
-                        ESP_LOGE(TAG, "failed to execute spi_device_get_trans_result(): 0x%X", err);
+                        ESP_LOGE(TAG, "failed to execute spi_slave_get_trans_result(): 0x%X", err);
                     } else {
-                        num_received_bytes = rtrans->rxlength / 8; // bit -> byte
-                        ESP_LOGD(TAG, "transaction complete: %d bits (%d bytes) received", rtrans->rxlength, num_received_bytes);
+                        num_received_bytes = rtrans->trans_len / 8; // bit -> byte
+                        ESP_LOGD(TAG, "transaction complete: %d bits (%d bytes) received", rtrans->trans_len, num_received_bytes);
                     }
                 } else {
-                    ESP_LOGE(TAG, "skip spi_device_get_trans_result() because queue was failed: index = %u", i);
+                    ESP_LOGE(TAG, "skip spi_slave_get_trans_result() because queue was failed: index = %u", i);
                 }
 
                 // send the received bytes back to main task
@@ -205,7 +196,7 @@ void spi_master_task(void *arg)
             }
 
             // should be deleted because the ownership is moved from main task
-            delete[] trans_ctx.trans_ext;
+            delete[] trans_ctx.trans;
 
             ESP_LOGD(TAG, "all requested transactions completed");
         }
@@ -223,43 +214,37 @@ void spi_master_task(void *arg)
     vQueueDelete(s_trans_error_handle);
     vQueueDelete(s_trans_queue_handle);
 
-    spi_bus_remove_device(device_handle);
-    spi_bus_free(ctx->host);
+    spi_slave_free(ctx->host);
 
     xTaskNotifyGive(ctx->main_task_handle);
-    ESP_LOGD(TAG, "spi_master_task finished");
+    ESP_LOGD(TAG, "spi_slave_task finished");
 
     vTaskDelete(NULL);
 }
 
-class Master
+class Slave
 {
-    spi_master_context_t ctx;
-    std::vector<spi_transaction_ext_t> transactions;
-    spi_master_cb_user_context_t cb_user_ctx;
+    spi_slave_context_t ctx;
+    std::vector<spi_slave_transaction_t> transactions;
+    spi_slave_cb_user_context_t cb_user_ctx;
     TaskHandle_t spi_task_handle {NULL};
 
 public:
-    /// @brief initialize SPI with the default pin assignment for HSPI, FSPI or VSPI
+    /// @brief initialize SPI with the default pin assignment for HSPI, or VSPI
     /// @param spi_bus HSPI, FSPI or VSPI
     /// @return true if initialization succeeded, false otherwise
-    bool begin(uint8_t spi_bus = HSPI)
+    bool begin(const uint8_t spi_bus = HSPI)
     {
 #ifdef CONFIG_IDF_TARGET_ESP32
         this->ctx.if_cfg.spics_io_num = (spi_bus == VSPI) ? SS : 15;
         this->ctx.bus_cfg.sclk_io_num = (spi_bus == VSPI) ? SCK : 14;
         this->ctx.bus_cfg.mosi_io_num = (spi_bus == VSPI) ? MOSI : 13;
         this->ctx.bus_cfg.miso_io_num = (spi_bus == VSPI) ? MISO : 12;
-#else
-        this->ctx.if_cfg.spics_io_num = SS;
-        this->ctx.bus_cfg.sclk_io_num = SCK;
-        this->ctx.bus_cfg.mosi_io_num = MOSI;
-        this->ctx.bus_cfg.miso_io_num = MISO;
 #endif
         return this->initialize(spi_bus);
     }
     /// @brief initialize SPI with HSPI/FSPI/VSPI, sck, miso, mosi, and ss pins
-    /// @param spi_bus HSPI or VSPI (or FSIP)
+    /// @param spi_bus HSPI, FSPI or VSPI
     /// @param sck
     /// @param miso
     /// @param mosi
@@ -281,7 +266,6 @@ public:
     /// @param data1
     /// @param data2
     /// @param data3
-    /// @note if you want quad spi with WP and HD pins, please use data0 as MOSI, data1 as MISO, data2 as WP, and data3 as HD
     bool begin(uint8_t spi_bus, int sck, int ss, int data0, int data1, int data2, int data3)
     {
         this->ctx.if_cfg.spics_io_num = ss;
@@ -319,16 +303,16 @@ public:
         return this->initialize(spi_bus);
     }
 
-    /// @brief stop spi master (terminate spi_master_task and deinitialize spi)
+    /// @brief stop spi slave (terminate spi_slave_task and deinitialize spi)
     void end()
     {
         if (this->spi_task_handle == NULL) {
-            ESP_LOGW(TAG, "spi_master_task already terminated");
+            ESP_LOGW(TAG, "spi_slave_task already terminated");
             return;
         }
         xTaskNotifyGive(this->spi_task_handle);
         if (xTaskNotifyWait(0, 0, NULL, pdMS_TO_TICKS(5000)) != pdTRUE) {
-            ESP_LOGW(TAG, "timeout waiting for the termination of spi_master_task");
+            ESP_LOGW(TAG, "timeout waiting for the termination of spi_slave_task");
         }
         this->spi_task_handle = NULL;
     }
@@ -354,15 +338,10 @@ public:
     /// @note  this function is blocking until the completion of transmission
     size_t transfer(const uint8_t* tx_buf, uint8_t* rx_buf, size_t size, uint32_t timeout_ms = 0)
     {
-        return this->transfer(0, 0, 0, 0, 0, 0, tx_buf, rx_buf, size, timeout_ms);
+        return this->transfer(0, tx_buf, rx_buf, size, timeout_ms);
     }
     /// @brief execute one transaction and wait for the completion of transmission to return the result
-    /// @param command_bits number of bits in command phase (0-16)
-    /// @param address_bits number of bits in address phase (0-64)
-    /// @param dummy_bits number of dummy bits to insert between address and data phase (0-64)
     /// @param flags SPI_TRANS_* flags
-    /// @param cmd command to send
-    /// @param addr address to send
     /// @param tx_buf pointer to the buffer of data to be sent
     /// @param rx_buf pointer to the buffer of data to be received
     /// @param size size of data to be sent
@@ -370,18 +349,13 @@ public:
     /// @return the size of received bytes
     /// @note  this function is blocking until the completion of transmission
     size_t transfer(
-        uint8_t command_bits,
-        uint8_t address_bits,
-        uint8_t dummy_bits,
         uint32_t flags,
-        uint16_t cmd,
-        uint64_t addr,
         const uint8_t* tx_buf,
         uint8_t* rx_buf,
         size_t size,
         uint32_t timeout_ms
     ) {
-        if (!this->queue(command_bits, address_bits, dummy_bits, flags, cmd, addr, tx_buf, rx_buf, size)) {
+        if (!this->queue(flags, tx_buf, rx_buf, size)) {
             return 0;
         }
         const auto results = this->wait(timeout_ms);
@@ -398,29 +372,25 @@ public:
     /// @param rx_buf pointer to the buffer of data to be received
     /// @param size size of data to be sent
     /// @return true if the transaction is queued successfully, false otherwise
+    /// @note   If the size of queued transactions exceeds pre-defined queue_size,
+    ///         automatically wait for the completion of transmission and results are stored in the background.
+    ///         The results are cleared when the next transaction is queued.
     bool queue(const uint8_t* tx_buf, uint8_t* rx_buf, size_t size)
     {
-        return this->queue(0, 0, 0, 0, 0, 0, tx_buf, rx_buf, size);
+        return this->queue(0, tx_buf, rx_buf, size);
     }
     /// @brief  queue transaction to internal transaction buffer.
     ///         To start transaction, wait() or trigger() must be called.
-    /// @param command_bits number of bits in command phase (0-16)
-    /// @param address_bits number of bits in address phase (0-64)
-    /// @param dummy_bits number of dummy bits to insert between address and data phase (0-64)
     /// @param flags SPI_TRANS_* flags
-    /// @param cmd command to send
-    /// @param addr address to send
     /// @param tx_buf pointer to the buffer of data to be sent
     /// @param rx_buf pointer to the buffer of data to be received
     /// @param size size of data to be sent
     /// @return true if the transaction is queued successfully, false otherwise
+    /// @note   If the size of queued transactions exceeds pre-defined queue_size,
+    ///         automatically wait for the completion of transmission and results are stored in the background.
+    ///         The results are cleared when the next transaction is queued.
     bool queue(
-        uint8_t command_bits,
-        uint8_t address_bits,
-        uint8_t dummy_bits,
         uint32_t flags,
-        uint16_t cmd,
-        uint64_t addr,
         const uint8_t* tx_buf,
         uint8_t* rx_buf,
         size_t size
@@ -433,7 +403,7 @@ public:
             ESP_LOGW(TAG, "failed to queue transaction: queue is full - only %u transactions can be queued at once", this->ctx.if_cfg.queue_size);
             return false;
         }
-        this->queueTransaction(command_bits, address_bits, dummy_bits, flags, cmd, addr, size, tx_buf, rx_buf);
+        this->queueTransaction(flags, size, tx_buf, rx_buf);
         return true;
     }
 
@@ -467,12 +437,12 @@ public:
         }
 
         spi_transaction_context_t trans_ctx {
-            .trans_ext = new spi_transaction_ext_t[this->transactions.size()],
+            .trans = new spi_slave_transaction_t[this->transactions.size()],
             .size = this->transactions.size(),
             .timeout_ticks = timeout_ms == 0 ? portMAX_DELAY : pdMS_TO_TICKS(timeout_ms),
         };
         for (size_t i = 0; i < this->transactions.size(); i++) {
-            trans_ctx.trans_ext[i] = std::move(this->transactions[i]);
+            trans_ctx.trans[i] = std::move(this->transactions[i]);
         }
         // NOTE: spi_transaction_ext_t should be delete inside of spi task after use
         int ret = xQueueSend(s_trans_queue_handle, &trans_ctx, SEND_TRANS_QUEUE_TIMEOUT_TICKS);
@@ -596,13 +566,14 @@ public:
         this->setSpiMode(mode);
     }
 
-    /// @brief set spi frequency
-    /// @param freq frequency [Hz] (up to 80 [MHz])
-    /// @note alias for setClockSpeedHz()
-    void setFrequency(size_t freq)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 1)
+    /// @brief set default data io level
+    /// @param level default data io level
+    void setDataIODefaultLevel(bool level)
     {
-        this->setClockSpeedHz(freq);
+        this->ctx.bus_cfg.data_io_default_level = level;
     }
+#endif
 
     /// @brief set max transfer size in bytes
     /// @param size max bytes to transfer
@@ -632,71 +603,46 @@ public:
 #endif
 
     // ===== Optional Configurations =====
-    // set these optional parameters before begin() if you want
 
-    /// @brief set default amount of bits in command phase (0-16), used when SPI_TRANS_VARIABLE_CMD is not used, otherwise ignored.
-    /// @param n
-    void setDefaultCommandBits(uint8_t n) { this->ctx.if_cfg.command_bits = n; }
-
-    /// @brief set default amount of bits in address phase (0-64), used when SPI_TRANS_VARIABLE_ADDR is not used, otherwise ignored.
-    /// @param n
-    void setDefaultAddressBits(uint8_t n) { this->ctx.if_cfg.address_bits = n; }
-
-    /// @brief amount of dummy bits to insert between address and data phase.
-    /// @param n
-    void setDefaultDummyBits(uint8_t n) { this->ctx.if_cfg.dummy_bits = n; }
+    /// @brief Bitwise OR of SPI_SLAVE_* flags.
+    /// @param flags
+    void setSlaveFlags(uint32_t flags) { this->ctx.if_cfg.flags = flags; }
 
     /// @brief SPI mode, representing a pair of (CPOL, CPHA) configuration: 0: (0, 0), 1: (0, 1), 2: (1, 0), 3: (1, 1)
     /// @param n
     void setSpiMode(uint8_t m) { this->ctx.if_cfg.mode = m; }
 
-    /// @brief Duty cycle of positive clock, in 1/256th increments (128 = 50%/50% duty). Setting this to 0 (=not setting it) is equivalent to setting this to 128.
-    /// @param n
-    void setDutyCyclePos(uint8_t n) { this->ctx.if_cfg.duty_cycle_pos = n; }
-
-    /// @brief SPI clock speed in Hz. Derived from clock_source.
-    /// @param f
-    void setClockSpeedHz(size_t f) { this->ctx.if_cfg.clock_speed_hz = f; }
-
-    /// @brief Maximum data valid time of slave. The time required between SCLK and MISO valid, including the possible clock delay from slave to master. The driver uses this value to give an extra delay before the MISO is ready on the line. Leave at 0 unless you know you need a delay. For better timing performance at high frequency (over 8MHz), it's suggest to have the right value.
-    /// @param n
-    void setInputDelayNs(int n) { this->ctx.if_cfg.input_delay_ns = n; }
-
-    /// @brief Bitwise OR of SPI_DEVICE_* flags.
-    /// @param flags
-    void setDeviceFlags(uint32_t flags) { this->ctx.if_cfg.flags = flags; }
-
-    /// @brief Callback to be called before a transmission is started.
-    /// @param pre_cb
+    /// @brief Callback called after the SPI registers are loaded with new data.
+    /// @param post_setup_cb
     /// @note  This callback is called within interrupt context should be in IRAM for best performance, see "Transferring Speed" section in the SPI Master documentation for full details. If not, the callback may crash during flash operation when the driver is initialized with ESP_INTR_FLAG_IRAM.
-    void setPreCb(const transaction_cb_t pre_cb) { this->ctx.if_cfg.pre_cb = pre_cb; }
+    void setPostSetupCb(const slave_transaction_cb_t &post_setup_cb) { this->ctx.if_cfg.post_setup_cb = post_setup_cb; }
 
-    /// @brief Callback to be called after a transmission has completed.
-    /// @param post_cb
+    /// @brief Callback called after a transaction is done.
+    /// @param post_trans_cb
     /// @note  This callback is called within interrupt context should be in IRAM for best performance, see "Transferring Speed" section in the SPI Master documentation for full details. If not, the callback may crash during flash operation when the driver is initialized with ESP_INTR_FLAG_IRAM.
-    void setPostCb(const transaction_cb_t post_cb) { this->ctx.if_cfg.post_cb = post_cb; }
+    void setPostTransCb(const slave_transaction_cb_t &post_trans_cb) { this->ctx.if_cfg.post_trans_cb = post_trans_cb; }
 
-    /// @brief set pre callback (ISR) and its argument that are called before transaction started.
+    /// @brief set post_setup callback (ISR) and its argument that are called after transaction setup completed.
     ///        you can call this function before every transfer() / queue() to change the behavior per transaction.
     ///        see more details about callbacks at https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/spi_master.html#_CPPv4N29spi_device_interface_config_t6pre_cbE
     /// @param cb  callback that is called when pre callbacks are called
     /// @param arg pointer to your own data that you want to pass to the callbak
-    /// @note      pre callbacks will be called within the interrupt context
-    void setUserPreCbAndArg(const spi_master_user_cb_t &cb, void *arg)
+    /// @note      post_setup callbacks will be called within the interrupt context
+    void setUserPostSetupCbAndArg(const spi_slave_user_cb_t &cb, void *arg)
     {
-        this->cb_user_ctx.pre.user_cb = cb;
-        this->cb_user_ctx.pre.user_arg = arg;
+        this->cb_user_ctx.post_setup.user_cb = cb;
+        this->cb_user_ctx.post_setup.user_arg = arg;
     }
-    /// @brief set post callback (ISR) and its argument that are called after transaction completed.
+    /// @brief set post_trans callback (ISR) and its argument that are called after transaction completed.
     ///        you can call this function before every transfer() / queue() to change the behavior per transaction.
     ///        see more details about callbacks at https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/spi_master.html#_CPPv4N29spi_device_interface_config_t6pre_cbE
     /// @param cb  callback that is called when pre/post callbacks are called
     /// @param arg pointer to your own data that you want to pass to the callbak
-    /// @note      post callbacks will be called within the interrupt context
-    void setUserPostCbAndArg(const spi_master_user_cb_t &cb, void *arg)
+    /// @note      post_trans callbacks will be called within the interrupt context
+    void setUserPostTransCbAndArg(const spi_slave_user_cb_t &cb, void *arg)
     {
-        this->cb_user_ctx.post.user_cb = cb;
-        this->cb_user_ctx.post.user_arg = arg;
+        this->cb_user_ctx.post_trans.user_cb = cb;
+        this->cb_user_ctx.post_trans.user_arg = arg;
     }
 
 private:
@@ -724,67 +670,46 @@ private:
         }
     }
 
-    bool initialize(uint8_t spi_bus)
+    bool initialize(const uint8_t spi_bus)
     {
         this->ctx.host = this->hostFromBusNumber(spi_bus);
-        this->ctx.bus_cfg.flags |= SPICOMMON_BUSFLAG_MASTER;
+        this->ctx.bus_cfg.flags |= SPICOMMON_BUSFLAG_SLAVE;
         this->ctx.main_task_handle = xTaskGetCurrentTaskHandle();
         this->transactions.reserve(this->ctx.if_cfg.queue_size);
 
-        // create spi master task
-        std::string task_name = std::string("spi_master_task_") + std::to_string(this->ctx.if_cfg.spics_io_num);
-        int ret = xTaskCreatePinnedToCore(spi_master_task, task_name.c_str(), SPI_MASTER_TASK_STASCK_SIZE, static_cast<void*>(&this->ctx), SPI_MASTER_TASK_PRIORITY, &this->spi_task_handle, 1);
+        // create spi slave task
+        std::string task_name = std::string("spi_slave_task_") + std::to_string(this->ctx.if_cfg.spics_io_num);
+#if SOC_CPU_CORES_NUM == 1
+        int ret = xTaskCreatePinnedToCore(spi_slave_task, task_name.c_str(), SPI_SLAVE_TASK_STASCK_SIZE, static_cast<void*>(&this->ctx), SPI_SLAVE_TASK_PRIORITY, &this->spi_task_handle, 0);
+#else
+        int ret = xTaskCreatePinnedToCore(spi_slave_task, task_name.c_str(), SPI_SLAVE_TASK_STASCK_SIZE, static_cast<void*>(&this->ctx), SPI_SLAVE_TASK_PRIORITY, &this->spi_task_handle, 1);
+#endif
         if (ret != pdPASS) {
-            ESP_LOGE(TAG, "failed to create spi_master_task: %d", ret);
+            ESP_LOGE(TAG, "failed to create spi_slave_task: %d", ret);
             return false;
         }
 
         return true;
     }
 
-    spi_transaction_ext_t generateTransaction(
-        uint8_t command_bits,
-        uint8_t address_bits,
-        uint8_t dummy_bits,
-        uint32_t flags,
-        uint16_t cmd,
-        uint64_t addr,
-        size_t size,
-        const uint8_t* tx_buf,
-        uint8_t* rx_buf
-    ) {
-        spi_transaction_ext_t trans;
+    spi_slave_transaction_t generateTransaction(uint32_t flags, size_t size, const uint8_t* tx_buf, uint8_t* rx_buf)
+    {
+        spi_slave_transaction_t trans;
 
-        // allow variable cmd/addr/dummy bits based on spi_transaction_ext_t
-        trans.base.flags = flags;
-        trans.base.cmd = cmd;
-        trans.base.addr = addr;
-        trans.base.length = 8 * size;  // in bit size
-        trans.base.rxlength = 0; // set to same one with length
-        trans.base.user = &this->cb_user_ctx; // user-defined callback and arg
-        trans.base.tx_buffer = (tx_buf == nullptr) ? NULL : tx_buf;
-        trans.base.rx_buffer = (rx_buf == nullptr) ? NULL : rx_buf;
-
-        trans.command_bits = command_bits;
-        trans.address_bits = address_bits;
-        trans.dummy_bits = dummy_bits;
+        // trans.flags = flags;
+        trans.length = 8 * size;  // in bit size
+        trans.trans_len = 0;      // will be written after transaction
+        trans.tx_buffer = (tx_buf == nullptr) ? NULL : tx_buf;
+        trans.rx_buffer = (rx_buf == nullptr) ? NULL : rx_buf;
+        trans.user = &this->cb_user_ctx; // user-defined callback and arg
 
         return trans;
     }
 
-    void queueTransaction(
-        uint8_t command_bits,
-        uint8_t address_bits,
-        uint8_t dummy_bits,
-        uint32_t flags,
-        uint16_t cmd,
-        uint64_t addr,
-        size_t size,
-        const uint8_t* tx_buf,
-        uint8_t* rx_buf
-    ) {
-        spi_transaction_ext_t trans_ext = generateTransaction(command_bits, address_bits, dummy_bits, flags, cmd, addr, size, tx_buf, rx_buf);
-        this->transactions.push_back(std::move(trans_ext));
+    void queueTransaction(uint32_t flags, size_t size, const uint8_t* tx_buf, uint8_t* rx_buf)
+    {
+        spi_slave_transaction_t trans = generateTransaction(flags, size, tx_buf, rx_buf);
+        this->transactions.push_back(std::move(trans));
     }
 
     std::vector<size_t> waitTransaction(size_t num_will_be_queued)
@@ -797,8 +722,8 @@ private:
     }
 };
 
-ARDUINO_ESP32_DMA_SPI_NAMESPACE_END
+ARDUINO_ESP32_DMA_SPI_SLAVE_NAMESPACE_END
 
-namespace ESP32DMASPI = arduino::esp32::spi::dma;
+namespace ESP32DMASPISlave = arduino::esp32::spi::dma::slave;
 
-#endif  // ESP32DMASPI_MASTER_H
+#endif  // ESP32DMASPI_SLAVE_H

@@ -41,13 +41,13 @@ namespace TesseractCommon
             }
 
             memset(SpiReceiveBuffer, 0, _bufferSize + SPI_BUFFER_PADDING);
-            size_t receivedLength = _slave.transfer(SpiSendBuffer, SpiReceiveBuffer, _bufferSize, 500);
+            size_t receivedLength = _slave.transfer(SpiSendBuffer, SpiReceiveBuffer, _bufferSize, 5000);
             data = SpiReceiveBuffer;
             return receivedLength;
         }
 
     private:
-        ESP32DMASPISlave::Slave _slave;
+        ESP32DMASPI::Slave _slave;
         bool _initialized = false;
 
         int _csPin = 10; // Default CS pin

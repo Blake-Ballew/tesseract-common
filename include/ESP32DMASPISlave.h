@@ -5,28 +5,25 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <driver/spi_slave.h>
-#include <soc/soc_caps.h>
 #include <vector>
 #include <string>
 
-#ifndef ARDUINO_ESP32_DMA_SPI_SLAVE_NAMESPACE_BEGIN
-#define ARDUINO_ESP32_DMA_SPI_SLAVE_NAMESPACE_BEGIN \
+#ifndef ARDUINO_ESP32_DMA_SPI_NAMESPACE_BEGIN
+#define ARDUINO_ESP32_DMA_SPI_NAMESPACE_BEGIN \
     namespace arduino {                       \
     namespace esp32 {                         \
         namespace spi {                       \
-            namespace dma {                   \
-                namespace slave {
+            namespace dma {
 #endif
-#ifndef ARDUINO_ESP32_DMA_SPI_SLAVE_NAMESPACE_END
-#define ARDUINO_ESP32_DMA_SPI_SLAVE_NAMESPACE_END \
+#ifndef ARDUINO_ESP32_DMA_SPI_NAMESPACE_END
+#define ARDUINO_ESP32_DMA_SPI_NAMESPACE_END \
     }                                       \
     }                                       \
     }                                       \
-    }                                       \
-    }   // namespace arduino::esp32::spi::dma::slave
+    }
 #endif
 
-ARDUINO_ESP32_DMA_SPI_SLAVE_NAMESPACE_BEGIN
+ARDUINO_ESP32_DMA_SPI_NAMESPACE_BEGIN
 
 static constexpr const char *TAG = "ESP32DMASPISlave";
 static constexpr int SPI_SLAVE_TASK_STASCK_SIZE = 1024 * 2;
@@ -67,15 +64,12 @@ struct spi_slave_context_t
         .data5_io_num = -1,
         .data6_io_num = -1,
         .data7_io_num = -1,
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 1)
-        .data_io_default_level = false,
-#endif
         .max_transfer_sz = 4092,  // default: 4092 if DMA enabled, SOC_SPI_MAXIMUM_BUFFER_SIZE if DMA disabled
         .flags = SPICOMMON_BUSFLAG_SLAVE,
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 2, 0)
-        .isr_cpu_id = ESP_INTR_CPU_AFFINITY_AUTO,
-#elif ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
         .isr_cpu_id = INTR_CPU_ID_AUTO,
+#elif ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 2, 0)
+        .isr_cpu_id = ESP_INTR_CPU_AFFINITY_AUTO,
 #endif
         .intr_flags = 0,
     };
@@ -566,15 +560,6 @@ public:
         this->setSpiMode(mode);
     }
 
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 1)
-    /// @brief set default data io level
-    /// @param level default data io level
-    void setDataIODefaultLevel(bool level)
-    {
-        this->ctx.bus_cfg.data_io_default_level = level;
-    }
-#endif
-
     /// @brief set max transfer size in bytes
     /// @param size max bytes to transfer
     void setMaxTransferSize(size_t size)
@@ -679,11 +664,7 @@ private:
 
         // create spi slave task
         std::string task_name = std::string("spi_slave_task_") + std::to_string(this->ctx.if_cfg.spics_io_num);
-#if SOC_CPU_CORES_NUM == 1
-        int ret = xTaskCreatePinnedToCore(spi_slave_task, task_name.c_str(), SPI_SLAVE_TASK_STASCK_SIZE, static_cast<void*>(&this->ctx), SPI_SLAVE_TASK_PRIORITY, &this->spi_task_handle, 0);
-#else
         int ret = xTaskCreatePinnedToCore(spi_slave_task, task_name.c_str(), SPI_SLAVE_TASK_STASCK_SIZE, static_cast<void*>(&this->ctx), SPI_SLAVE_TASK_PRIORITY, &this->spi_task_handle, 1);
-#endif
         if (ret != pdPASS) {
             ESP_LOGE(TAG, "failed to create spi_slave_task: %d", ret);
             return false;
@@ -722,8 +703,8 @@ private:
     }
 };
 
-ARDUINO_ESP32_DMA_SPI_SLAVE_NAMESPACE_END
+ARDUINO_ESP32_DMA_SPI_NAMESPACE_END
 
-namespace ESP32DMASPISlave = arduino::esp32::spi::dma::slave;
+namespace ESP32DMASPI = arduino::esp32::spi::dma;
 
 #endif  // ESP32DMASPI_SLAVE_H
